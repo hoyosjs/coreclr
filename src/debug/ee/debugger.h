@@ -3254,6 +3254,8 @@ public:
     DebuggerModule *GetNextModule(HASHFIND *info);
 };
 
+#define FEATURE_DBGHASH_PERF
+#ifndef FEATURE_DBGHASH_PERF
 // struct DebuggerMethodInfoKey:   Key for each of the method info hash table entries.
 // Module * m_pModule:  This and m_token make up the key
 // mdMethodDef m_token:  This and m_pModule make up the key
@@ -3376,6 +3378,133 @@ public:
     void EnumMemoryRegions(CLRDataEnumMemoryFlags flags);
 #endif
 };
+
+#else
+
+// struct DebuggerMethodInfoKey:   Key for each of the method info hash table entries.
+typedef DPTR(struct DebuggerMethodInfoKey) PTR_DebuggerMethodInfoKey;
+struct DebuggerMethodInfoKey
+{
+    DebuggerMethodInfoKey() {}
+    DebuggerMethodInfoKey(const PTR_Module pMod, mdMethodDef tok)
+        : pModule(pMod), token(tok) {}
+
+    PTR_Module          pModule;
+    mdMethodDef         token;
+} ;
+
+typedef DPTR(struct DebuggerMethodInfoEntry) PTR_DebuggerMethodInfoEntry;
+struct DebuggerMethodInfoEntry
+{
+    DebuggerMethodInfoKey  key;
+    SIZE_T                 nVersion;
+    SIZE_T                 nVersionLastRemapped;
+    PTR_DebuggerMethodInfo   mi;
+
+#ifdef DACCESS_COMPILE
+    void EnumMemoryRegions(CLRDataEnumMemoryFlags flags);
+#endif
+};
+
+class DebuggerMethodInfoHashTraits : public DefaultSHashTraits<DebuggerMethodInfo*>
+    {
+    public:
+        typedef DebuggerMethodInfoKey key_t;
+ 
+        static key_t GetKey(element_t pDmi)
+        {
+            // TODO: What if the entry is null.
+            LIMITED_METHOD_DAC_CONTRACT;
+            return DebuggerMethodInfoKey(pDmi->GetRuntimeModule(), pDmi->);
+        }
+        static BOOL Equals(key_t dmik1, key_t dmik2)
+        {
+            LIMITED_METHOD_DAC_CONTRACT;
+            // TODO: Verify the module pointers properly marshalled through the DAC?
+            return dac_cast<TADDR>(dmik1.pModule) == dac_cast<TADDR>(dmik2.pModule) && dmik1.token == dmik2.token;
+        }
+        static count_t Hash(key_t dmik)
+        {
+            LIMITED_METHOD_DAC_CONTRACT;
+            return HashPtr(dmik.token, dmik.pModule);
+        }
+        static element_t Null()
+        {
+            return NULL;
+        }
+        static bool IsNull(const element_t &pDmi)
+        {
+            return (pDmi == NULL);
+        }
+
+    };
+
+// class DebuggerMethodInfoTable:   Hash table to hold all the non-JIT related
+// info for each method we see.  The JIT infos live in a seperate table
+// keyed by MethodDescs - there may be multiple
+// JITted realizations of each MethodDef, e.g. under different generic
+// assumptions.  Hangs off of the Debugger object.
+// INVARIANT: There is only one DebuggerMethodInfo per method
+// in the table. Note that DMI's will be hashed by MethodDesc.
+//
+class DebuggerMethodInfoTable : private CHashTableAndData<CNewZeroData>
+{
+    VPTR_BASE_CONCRETE_VTABLE_CLASS(DebuggerMethodInfoTable);
+
+  public:
+    virtual ~DebuggerMethodInfoTable() = default;
+
+  private:
+
+    ULONG HASH(DebuggerMethodInfoKey* pDjik)
+    {
+        LIMITED_METHOD_DAC_CONTRACT;
+        return HashPtr( pDjik->token, pDjik->pModule );
+    }
+
+    SIZE_T KEY(DebuggerMethodInfoKey * pDjik)
+    {
+        // This is casting a host pointer to a SIZE_T. So that key is restricted to the host address space.
+        // This key is just passed to Cmp(), which will cast it back to a DebuggerMethodInfoKey*.
+        LIMITED_METHOD_DAC_CONTRACT;
+        return (SIZE_T)pDjik;
+    }
+
+  public:
+
+#ifndef DACCESS_COMPILE
+
+    DebuggerMethodInfoTable();
+
+    HRESULT AddMethodInfo(Module *pModule,
+                       mdMethodDef token,
+                       DebuggerMethodInfo *mi);
+
+    HRESULT OverwriteMethodInfo(Module *pModule,
+                             mdMethodDef token,
+                             DebuggerMethodInfo *mi,
+                             BOOL fOnlyIfNull);
+
+    // pModule is being unloaded - remove any entries that belong to it.  Why?
+    // (a) Correctness: the module can be reloaded at the same address,
+    //      which will cause accidental matches with our hashtable (indexed by
+    //      {Module*,mdMethodDef}
+    // (b) Perf: don't waste the memory!
+    void ClearMethodsOfModule(Module *pModule);
+    void DeleteEntryDMI(DebuggerMethodInfoEntry *entry);
+
+#endif // #ifndef DACCESS_COMPILE
+
+    DebuggerMethodInfo *GetMethodInfo(Module *pModule, mdMethodDef token);
+    DebuggerMethodInfo *GetFirstMethodInfo(HASHFIND *info);
+    DebuggerMethodInfo *GetNextMethodInfo(HASHFIND *info);
+
+#ifdef DACCESS_COMPILE
+    void EnumMemoryRegions(CLRDataEnumMemoryFlags flags);
+#endif
+};
+
+#endif // FEATURE_DBGHASH_PERF
 
 class DebuggerEvalBreakpointInfoSegment
 {

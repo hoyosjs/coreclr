@@ -2116,7 +2116,6 @@ DebuggerJitInfo* DebuggerMethodInfo::GetLatestJitInfo_NoCreate()
     return m_latestJitInfo;
 }
 
-
 DebuggerMethodInfoTable::DebuggerMethodInfoTable() : CHashTableAndData<CNewZeroData>(101)
 {
     CONTRACTL
@@ -2138,8 +2137,8 @@ DebuggerMethodInfoTable::DebuggerMethodInfoTable() : CHashTableAndData<CNewZeroD
 }
 
 HRESULT DebuggerMethodInfoTable::AddMethodInfo(Module *pModule,
-                   mdMethodDef token,
-                   DebuggerMethodInfo *mi)
+                                               mdMethodDef token,
+                                               DebuggerMethodInfo *mi)
 {
     CONTRACTL
     {
@@ -2152,10 +2151,11 @@ HRESULT DebuggerMethodInfoTable::AddMethodInfo(Module *pModule,
     }
     CONTRACTL_END;
 
-   LOG((LF_CORDB, LL_INFO1000, "DMIT::AMI Adding dmi:0x%x Mod:0x%x tok:"
-        "0x%x nVer:0x%x\n", mi, pModule, token, mi->GetCurrentEnCVersion()));
+    LOG((LF_CORDB, LL_INFO1000, "DMIT::AMI Adding dmi:0x%x Mod:0x%x tok:"
+                                "0x%x nVer:0x%x\n",
+         mi, pModule, token, mi->GetCurrentEnCVersion()));
 
-   _ASSERTE(mi != NULL);
+    _ASSERTE(mi != NULL);
 
     _ASSERTE(g_pDebugger->HasDebuggerDataLock());
 
@@ -2168,7 +2168,7 @@ HRESULT DebuggerMethodInfoTable::AddMethodInfo(Module *pModule,
     dmik.token = token;
 
     DebuggerMethodInfoEntry *dmie =
-        (DebuggerMethodInfoEntry *) Add(HASH(&dmik));
+        (DebuggerMethodInfoEntry *)Add(HASH(&dmik));
 
     if (dmie != NULL)
     {
@@ -2177,7 +2177,7 @@ HRESULT DebuggerMethodInfoTable::AddMethodInfo(Module *pModule,
         dmie->mi = mi;
 
         LOG((LF_CORDB, LL_INFO1000, "DMIT::AJI: mod:0x%x tok:0%x ",
-            pModule, token));
+             pModule, token));
         return S_OK;
     }
 

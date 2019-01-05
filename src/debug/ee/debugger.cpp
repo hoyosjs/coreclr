@@ -42,7 +42,7 @@
 
 #include "threadsuspend.h"
 
-
+#define DEBUGGING_SUPPORTED
 #ifdef DEBUGGING_SUPPORTED
 
 #ifdef _DEBUG
