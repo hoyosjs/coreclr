@@ -5,24 +5,6 @@
 # out the variables that might be too large.
 export ghprbCommentBody=
 
-# resolve python-version to use
-if [ "$PYTHON" == "" ] ; then
-    if ! PYTHON=$(command -v python3 || command -v python2 || command -v python || command -v py)
-    then
-       echo "Unable to locate build-dependency python!" 1>&2
-       exit 1
-    fi
-fi
-# validate python-dependency
-# useful in case of explicitly set option.
-if ! command -v $PYTHON > /dev/null
-then
-   echo "Unable to locate build-dependency python ($PYTHON)!" 1>&2
-   exit 1
-fi
-
-export PYTHON
-
 usage()
 {
     echo "Usage: $0 [BuildArch] [BuildType] [-verbose] [-coverage] [-cross] [-gccx.y] [-clangx.y] [-ninja] [-configureonly] [-skipconfigure] [-skipnative] [-skipcrossarchnative] [-skipmanaged] [-skipmscorlib] [-stripsymbols] [-ignorewarnings] [-cmakeargs] [-bindir]"
@@ -177,28 +159,6 @@ restore_optdata()
     fi
 }
 
-generate_event_logging_sources()
-{
-    __OutputDir=$1
-    __OutputEventingDir="$__OutputDir/Eventing"
-
-    __PythonWarningFlags="-Wall"
-    if [[ $__IgnoreWarnings == 0 ]]; then
-        __PythonWarningFlags="$__PythonWarningFlags -Werror"
-    fi
-
-    echo "Laying out dynamically generated EventSource classes"
-    $PYTHON -B $__PythonWarningFlags "$__ProjectRoot/src/scripts/genRuntimeEventSources.py" --man "$__ProjectRoot/src/vm/ClrEtwAll.man" --intermediate "$__OutputEventingDir"
-}
-
-generate_event_logging()
-{
-    # Event Logging Infrastructure
-    if [[ $__SkipMSCorLib == 0 ]]; then
-        generate_event_logging_sources "$__IntermediatesDir"
-    fi
-}
-
 build_native()
 {
     skipCondition=$1
@@ -310,8 +270,6 @@ build_cross_architecture_components()
 
     mkdir -p "$intermediatesForBuild"
     mkdir -p "$crossArchBinDir"
-
-    generate_event_logging_sources "$intermediatesForBuild" "the crossarch build system"
 
     __SkipCrossArchBuild=1
     # check supported cross-architecture components host(__HostArch)/target(__BuildArch) pair
@@ -1072,9 +1030,6 @@ check_prereqs
 
 # Restore the package containing profile counts for profile-guided optimizations
 restore_optdata
-
-# Generate event logging infrastructure sources
-generate_event_logging
 
 # Build the coreclr (native) components.
 __ExtraCmakeArgs="-DCLR_CMAKE_TARGET_OS=$__BuildOS -DCLR_CMAKE_PACKAGES_DIR=$__PackagesDir -DCLR_CMAKE_PGO_INSTRUMENT=$__PgoInstrument -DCLR_CMAKE_OPTDATA_VERSION=$__PgoOptDataVersion -DCLR_CMAKE_PGO_OPTIMIZE=$__PgoOptimize"

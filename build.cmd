@@ -425,31 +425,6 @@ set /p __IbcOptDataVersion=<"!IbcDataPackageVersionOutputFile!"
 
 REM =========================================================================================
 REM ===
-REM === Generate source files for eventing
-REM ===
-REM =========================================================================================
-
-set __IntermediatesIncDir=%__IntermediatesDir%\src\inc
-set __IntermediatesEventingDir=%__IntermediatesDir%\Eventing
-
-REM Find python and set it to the variable PYTHON
-set _C=-c "import sys; sys.stdout.write(sys.executable)"
-(py -3 %_C% || py -2 %_C% || python3 %_C% || python2 %_C% || python %_C%) > %TEMP%\pythonlocation.txt 2> NUL
-set _C=
-set /p PYTHON=<%TEMP%\pythonlocation.txt
-
-if NOT DEFINED PYTHON (
-    echo %__ErrMsgPrefix%%__MsgPrefix%Error: Could not find a python installation
-    exit /b 1
-)
-
-if %__BuildCoreLib% EQU 1 (
-    echo %__MsgPrefix%Laying out dynamically generated EventSource classes
-    "!PYTHON!" -B -Wall %__SourceDir%\scripts\genRuntimeEventSources.py --man %__SourceDir%\vm\ClrEtwAll.man --intermediate %__IntermediatesEventingDir% || exit /b 1
-)
-
-REM =========================================================================================
-REM ===
 REM === Build Cross-Architecture Native Components (if applicable)
 REM ===
 REM =========================================================================================

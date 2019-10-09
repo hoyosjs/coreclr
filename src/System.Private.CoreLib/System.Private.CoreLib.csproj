@@ -5,7 +5,36 @@
   <!-- Generate rsp -->
   <Import Project="GenerateCompilerResponseFile.targets" />
 
-  <Target Name="GenerateTheRSPFile" BeforeTargets="CoreCompile" DependsOnTargets="GenerateCompilerResponseFile">
+  <Target Name="GenerateTheRSPFile" BeforeTargets="CoreCompile" DependsOnTargets="GenerateCompilerResponseFile" />
+
+  <Target Name="GetPythonPath" Condition="'$(PYTHON)' == ''">
+    <PropertyGroup>
+      <PyVersionCmd>-c "import sys; sys.stdout.write(sys.executable)"</PyVersionCmd>
+      <PyVersionCmd Condition="'$(BuildOS)' == 'Windows_NT'">(py -3 $(PyVersionCmd) || py -2 $(PyVersionCmd) || python3 $(PyVersionCmd) || python2 $(PyVersionCmd) || python $(PyVersionCmd))</PyVersionCmd>
+      <PyVersionCmd Condition="'$(BuildOS)' != 'Windows_NT'">(command -v python3 || command -v python2 || command -v python || command -v py)</PyVersionCmd>
+    </PropertyGroup>
+    <Exec Command="$(PyVersionCmd)"
+        ConsoleToMSBuild="true" EchoOff="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="PYTHON" />
+    </Exec>
+  </Target>
+
+  <PropertyGroup>
+      <RuntimeEventSourceGenerator>$(CoreclrDir)src/scripts/genRuntimeEventSources.py</RuntimeEventSourceGenerator>
+      <EtwManFile>$(CoreclrDir)src/vm/ClrEtwAll.man</EtwManFile>
+      <IntermediateEventingDir>$(IntermediateOutputPath)../Eventing/</IntermediateEventingDir>
+      <GeneratedRuntimeEventFile>$(IntermediateEventingDir)NativeRuntimeEventSource.cs</GeneratedRuntimeEventFile>
+  </PropertyGroup>
+  <Target Name="GenerateRuntimeEventSources"
+      Condition="'$(FeaturePerfTracing)' == 'true'"
+      BeforeTargets="BeforeCompile" DependsOnTargets="GetPythonPath"
+      Inputs="$(EtwManFile);$(RuntimeEventSourceGenerator)" Outputs="$(GeneratedRuntimeEventFile)">
+    <Exec Command="&quot;$(PYTHON)&quot; -B -Wall &quot;$(RuntimeEventSourceGenerator)&quot; --man &quot;$(EtwManFile)&quot; --intermediate &quot;$(IntermediateEventingDir)&quot;" />
+    <Error Condition="!Exists('$(GeneratedRuntimeEventFile)')" Text="Failed to locate generated Eventing file at $(GeneratedRuntimeEventFile)" />
+    <ItemGroup>
+      <Compile Include="$(GeneratedRuntimeEventFile)" />
+      <FileWrites Include="$(GeneratedRuntimeEventFile)" />
+    </ItemGroup>
   </Target>
 
   <PropertyGroup>
@@ -317,7 +346,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="$(BclSourcesRoot)\System\Diagnostics\Eventing\XplatEventLogger.cs" Condition="'$(FeatureXplatEventSource)' == 'true'" />
-    <Compile Include="$(IntermediateOutputPath)../Eventing/NativeRuntimeEventSource.cs" Condition="'$(FeaturePerfTracing)' == 'true' AND '$(BuildingInsideVisualStudio)' != 'true' " />
   </ItemGroup>
   <ItemGroup Condition="'$(FeatureCominterop)' == 'true'">
     <Compile Include="$(BclSourcesRoot)\Internal\Runtime\InteropServices\WindowsRuntime\ExceptionSupport.cs" />
@@ -421,7 +449,7 @@
   <PropertyGroup>
     <CheckCDefines Condition="'$(CheckCDefines)'==''">true</CheckCDefines>
   </PropertyGroup>
-  <Target Name="CDefineChecker" BeforeTargets="Build" Condition="'$(CheckCDefines)'=='true'">
+  <Target Name="CDefineChecker" BeforeTargets="Build" DependsOnTargets="GetPythonPath" Condition="'$(CheckCDefines)'=='true'">
     <!-- Compiler Definition Verification -->
     <PropertyGroup>
       <CMakeDefinitionSaveFile>$(IntermediateOutputPath)\cmake.definitions</CMakeDefinitionSaveFile>
@@ -462,16 +490,6 @@
   <Import Project="CreateRuntimeRootILLinkDescriptorFile.targets" />
 
   <Target Name="CreateRuntimeRootIlLinkDescFile" BeforeTargets="CoreCompile" DependsOnTargets="_CreateILLinkRuntimeRootDescriptorFile">
-  </Target>
-
-  <!-- This is working around dotnet/coreclr#26371 until dotnet/sourcelink#392 gets solved -->
-  <Target Condition="'$(BuildingInsideVisualStudio)' != 'true'" Name="AddUntrackedResourcesForSourceLink"
-    BeforeTargets="CoreCompile"
-    DependsOnTargets="SetEmbeddedFilesFromSourceControlManagerUntrackedFiles;
-                      _GenerateResxSource" >
-    <ItemGroup>
-      <EmbeddedFiles Include="@(GeneratedResxSource)" />
-    </ItemGroup>
   </Target>
 
   <ItemGroup>
